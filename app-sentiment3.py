@@ -23,6 +23,9 @@ def process_excel(file):
     indirect_keywords = ['аналитик', 'комментарий', 'прогноз', 'отчет', 'заявление']
 
     def assess_relevance(text, company):
+        if pd.isna(text):  # Handle missing values
+            return 'unknown'
+        
         text = text.lower()
         direct_relevance = any(keyword in text for keyword in direct_keywords) and company.lower() in text
         indirect_relevance = any(keyword in text for keyword in indirect_keywords)
@@ -41,6 +44,9 @@ def process_excel(file):
     positive_keywords = ['прибыль', 'рост', 'увеличение', 'подъем']
 
     def assess_sentiment(text):
+        if pd.isna(text):  # Handle missing values
+            return 'neutral'
+
         text = text.lower()
         if any(word in text for word in negative_keywords):
             return 'negative'
@@ -53,6 +59,9 @@ def process_excel(file):
 
     # Step 5: Assess probable level of materiality based on financial amounts
     def assess_probable_materiality(text):
+        if pd.isna(text):  # Handle missing values
+            return 'unknown'
+
         match = re.search(r'(\d+)\s*млрд\s*руб', text.lower())
         if match:
             return 'significant'
