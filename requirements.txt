@@ -1,8 +1,5 @@
 streamlit
 pandas
-<<<<<<< HEAD
 numpy
 openpyxl
-=======
 numpy
->>>>>>> 3b613c7 (change reqs txt)
