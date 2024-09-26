@@ -110,7 +110,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     book = load_workbook(sample_file)
 
     # Write to the Dashboard sheet
-    dashboard_sheet = book['Dashboard']
+    dashboard_sheet = book['Сводка']
     for idx, row in dashboard_summary.iterrows():
         dashboard_sheet[f'E{4 + idx}'] = row['Объект']
         dashboard_sheet[f'F{4 + idx}'] = row['News_Count']
@@ -126,7 +126,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
             publications_sheet.cell(row=2 + r_idx, column=c_idx + 1).value = value
 
     # Write to the 'Filtered' sheet, no empty rows
-    filtered_sheet = book['Filtered']
+    filtered_sheet = book['Значимые']
     for f_idx, row in filtered_news.iterrows():
         filtered_sheet[f'C{3 + f_idx}'] = row['Объект']
         filtered_sheet[f'D{3 + f_idx}'] = row['Relevance']
@@ -156,7 +156,7 @@ if uploaded_file is not None:
 
     # Provide a download button for the processed file
     st.download_button(
-        label="Ссылка на загрузку",
+        label="СКАЧАЙ ЗДЕСЬ:",
         data=processed_file,
         file_name="processed_news.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
