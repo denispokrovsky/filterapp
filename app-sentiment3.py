@@ -90,7 +90,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
 
     df['Materiality_Level'] = df['Выдержки из текста'].apply(assess_probable_materiality)
 
-    # Step 6: Prepare summary for Dashboard
+    # Step 6: Prepare summary for "Сводка" sheet
     dashboard_summary = df.groupby('Объект').agg(
         News_Count=('Выдержки из текста', 'count'),
         Significant_Texts=('Materiality_Level', lambda x: (x == 'значительна').sum()),
@@ -99,8 +99,8 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
         Risk_Level=('Materiality_Level', lambda x: 'высокий' if 'значительна' in x.values else 'низкий')
     ).reset_index()
 
-    # Sort the summary by the number of material texts
-    dashboard_summary = dashboard_summary.sort_values(by='Significant_Texts', ascending=False)
+    # Sort the summary by News_Count first and Significant_Texts second (both in descending order)
+    dashboard_summary = dashboard_summary.sort_values(by=['News_Count', 'Significant_Texts'], ascending=[False, False])
 
     # Step 7: Filter only material news, ensuring non-duplicate texts
     filtered_news = df[df['Relevance'] == 'материальна']
@@ -109,7 +109,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     # Load the sample Excel file to maintain formatting
     book = load_workbook(sample_file)
 
-    # Write to the Dashboard sheet
+    # Write to the "Сводка" sheet
     dashboard_sheet = book['Сводка']
     for idx, row in dashboard_summary.iterrows():
         dashboard_sheet[f'E{4 + idx}'] = row['Объект']
@@ -125,7 +125,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
         for c_idx, value in enumerate(row):
             publications_sheet.cell(row=2 + r_idx, column=c_idx + 1).value = value
 
-    # Write to the 'Filtered' sheet, no empty rows
+    # Write to the 'Значимые' sheet, no empty rows
     filtered_sheet = book['Значимые']
     for f_idx, row in filtered_news.iterrows():
         filtered_sheet[f'C{3 + f_idx}'] = row['Объект']
@@ -150,9 +150,9 @@ if uploaded_file is not None:
     # Process the file and get the processed output and filtered data
     processed_file, filtered_table = process_excel_with_fuzzy_matching(uploaded_file, sample_file)
 
-    # Display the 'Filtered' table on the web page
+    # Display the filtered news as it appears in Excel
     st.write("Только материальные новости:")
-    st.dataframe(filtered_table)
+    st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
 
     # Provide a download button for the processed file
     st.download_button(
