@@ -6,7 +6,7 @@ from rapidfuzz import fuzz
 from openpyxl import load_workbook
 
 # Streamlit app layout
-st.title('Фильтр новостного файла в формате СКАН-Интерфакс на релевантность и значимость')
+st.title('Фильтр новостного файла в формате СКАН-Интерфакс на релевантность и значимость!')
 st.write("Загружайте и выгружайте!")
 
 # File uploader
