@@ -1,11 +1,19 @@
-import pandas as pd
 import streamlit as st
-from io import BytesIO
+import pandas as pd
 import re
+from io import BytesIO
+from rapidfuzz import fuzz
+from openpyxl import load_workbook
 
-# Function to process the Excel file
-def process_excel(file):
-    # Load all sheets from the Excel file
+# Streamlit app layout
+st.title('Фильтр новостного файла в формате СКАН-Интерфакс на релевантность и значимость')
+st.write("Загружайте и выгружайте!")
+
+# File uploader
+uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
+
+def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90):
+    # Load all sheets from the uploaded Excel file
     excel_file = pd.ExcelFile(file)
     sheets = {sheet_name: excel_file.parse(sheet_name) for sheet_name in excel_file.sheet_names}
 
@@ -15,103 +23,138 @@ def process_excel(file):
     # Step 1: Generate the list of unique companies from the 'Объект' column
     unique_companies = df['Объект'].dropna().unique().tolist()
 
-    # Step 2: Filter out repeated news pieces for the same company/bank
-    df = df.drop_duplicates(subset=['Объект', 'Выдержки из текста'])
+    # Step 2: Fuzzy filter out similar news for the same company/bank
+    def fuzzy_deduplicate(df, column, threshold=90):
+        seen_texts = []
+        indices_to_keep = []
+        for i, text in enumerate(df[column]):
+            if pd.isna(text):
+                indices_to_keep.append(i)
+                continue
+            text = str(text)
+            if not seen_texts or all(fuzz.ratio(text, seen) < threshold for seen in seen_texts):
+                seen_texts.append(text)
+                indices_to_keep.append(i)
+        return df.iloc[indices_to_keep]
+
+    # Apply fuzzy deduplication on 'Выдержки из текста' column
+    df = df.groupby('Объект').apply(lambda x: fuzzy_deduplicate(x, 'Выдержки из текста', similarity_threshold)).reset_index(drop=True)
 
     # Step 3: Define relevance assessment (including Russian-specific keywords)
     direct_keywords = ['убыток', 'прибыль', 'судебное дело', 'банкротство', 'потеря', 'миллиард', 'млн', 'миллиардов', 'миллионов', 'выручка']
     indirect_keywords = ['аналитик', 'комментарий', 'прогноз', 'отчет', 'заявление']
 
     def assess_relevance(text, company):
-        if pd.isna(text):  # Handle missing values
-            return 'unknown'
-        
+        if pd.isna(text):
+            return 'н/д'
         text = text.lower()
         direct_relevance = any(keyword in text for keyword in direct_keywords) and company.lower() in text
         indirect_relevance = any(keyword in text for keyword in indirect_keywords)
         if direct_relevance and not indirect_relevance:
-            return 'material'
+            return 'материальна'
         elif indirect_relevance:
-            return 'not material'
+            return 'нематериальная'
         else:
-            return 'unknown'
+            return 'н/д'
 
-    # Step 3: Apply relevance assessment
-    df.loc[:, 'Relevance'] = df.apply(lambda row: assess_relevance(row['Выдержки из текста'], row['Объект']), axis=1)
+    df['Relevance'] = df.apply(lambda row: assess_relevance(row['Выдержки из текста'], row['Объект']), axis=1)
 
-    # Step 4: Simple keyword-based sentiment assessment for Russian text
+    # Step 4: Sentiment assessment
     negative_keywords = ['убыток', 'потеря', 'снижение', 'упадок', 'падение']
     positive_keywords = ['прибыль', 'рост', 'увеличение', 'подъем']
 
     def assess_sentiment(text):
-        if pd.isna(text):  # Handle missing values
-            return 'neutral'
-
+        if pd.isna(text):
+            return 'нейтрально'
         text = text.lower()
         if any(word in text for word in negative_keywords):
-            return 'negative'
+            return 'негатив'
         elif any(word in text for word in positive_keywords):
-            return 'positive'
+            return 'позитив'
         else:
-            return 'neutral'
+            return 'нейтрально'
 
-    df.loc[:, 'Sentiment'] = df['Выдержки из текста'].apply(assess_sentiment)
+    df['Sentiment'] = df['Выдержки из текста'].apply(assess_sentiment)
 
-    # Step 5: Assess probable level of materiality based on financial amounts
+    # Step 5: Materiality assessment
     def assess_probable_materiality(text):
-        if pd.isna(text):  # Handle missing values
-            return 'unknown'
-
+        if pd.isna(text):
+            return 'н/д'
         match = re.search(r'(\d+)\s*млрд\s*руб', text.lower())
         if match:
-            return 'significant'
+            return 'значительна'
         elif 'миллион' in text.lower():
-            return 'significant'
+            return 'значительна'
         else:
-            return 'not significant'
+            return 'незначительна'
 
-    df.loc[:, 'Materiality_Level'] = df['Выдержки из текста'].apply(assess_probable_materiality)
+    df['Materiality_Level'] = df['Выдержки из текста'].apply(assess_probable_materiality)
 
-    # Step 6: Create Dashboard summarizing news for unique companies
-    summary = df.groupby('Объект').agg(
+    # Step 6: Prepare summary for Dashboard
+    dashboard_summary = df.groupby('Объект').agg(
         News_Count=('Выдержки из текста', 'count'),
-        Risk_Level=('Materiality_Level', lambda x: 'high' if 'significant' in x.values else 'low')
-    ).reindex(unique_companies, fill_value=0).reset_index()
+        Significant_Texts=('Materiality_Level', lambda x: (x == 'значительна').sum()),
+        Negative_Texts=('Sentiment', lambda x: (x == 'негатив').sum()),
+        Positive_Texts=('Sentiment', lambda x: (x == 'позитив').sum()),
+        Risk_Level=('Materiality_Level', lambda x: 'высокий' if 'значительна' in x.values else 'низкий')
+    ).reset_index()
 
-    # Step 7: Filter only relevant news for the companies in the 'Объект' list
-    filtered_news = df[df['Relevance'] == 'material']
+    # Sort the summary by the number of material texts
+    dashboard_summary = dashboard_summary.sort_values(by='Significant_Texts', ascending=False)
 
-    # Create a new Excel file with all sheets, adding 'Dashboard' and 'Filtered'
+    # Step 7: Filter only material news, ensuring non-duplicate texts
+    filtered_news = df[df['Relevance'] == 'материальна']
+    filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
+
+    # Load the sample Excel file to maintain formatting
+    book = load_workbook(sample_file)
+
+    # Write to the Dashboard sheet
+    dashboard_sheet = book['Dashboard']
+    for idx, row in dashboard_summary.iterrows():
+        dashboard_sheet[f'E{4 + idx}'] = row['Объект']
+        dashboard_sheet[f'F{4 + idx}'] = row['News_Count']
+        dashboard_sheet[f'G{4 + idx}'] = row['Significant_Texts']
+        dashboard_sheet[f'H{4 + idx}'] = row['Negative_Texts']
+        dashboard_sheet[f'I{4 + idx}'] = row['Positive_Texts']
+        dashboard_sheet[f'J{4 + idx}'] = row['Risk_Level']
+
+    # Write to the 'Публикации' sheet
+    publications_sheet = book['Публикации']
+    for r_idx, row in df.iterrows():
+        for c_idx, value in enumerate(row):
+            publications_sheet.cell(row=2 + r_idx, column=c_idx + 1).value = value
+
+    # Write to the 'Filtered' sheet, no empty rows
+    filtered_sheet = book['Filtered']
+    for f_idx, row in filtered_news.iterrows():
+        filtered_sheet[f'C{3 + f_idx}'] = row['Объект']
+        filtered_sheet[f'D{3 + f_idx}'] = row['Relevance']
+        filtered_sheet[f'E{3 + f_idx}'] = row['Sentiment']
+        filtered_sheet[f'F{3 + f_idx}'] = row['Materiality_Level']
+        filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок'] if 'Заголовок' in row else ''
+        filtered_sheet[f'H{3 + f_idx}'] = row['Выдержки из текста']
+
+    # Save the final file to a BytesIO buffer
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # Write back the original sheets
-        for sheet_name, data in sheets.items():
-            data.to_excel(writer, sheet_name=sheet_name, index=False)
-        
-        # Add modified sheets
-        df.to_excel(writer, sheet_name='Публикации', index=False)
-        summary.to_excel(writer, sheet_name='Dashboard', index=False)
-        filtered_news.to_excel(writer, sheet_name='Filtered', index=False)
-
+    book.save(output)
     output.seek(0)
+
     return output, filtered_news
 
-# Streamlit app layout
-st.title('Фильтр новостного файла в формате СКАН-Интерфакс на релевантность и значимость')
-st.write("Загружайте и выгружайте!")
-
-# File uploader
-uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
-
+# Handle file upload and processing
 if uploaded_file is not None:
-    # Process the file when uploaded
-    processed_file, filtered_table = process_excel(uploaded_file)
+    # Store the path to the sample Excel file for formatting
+    sample_file = "sample_file.xlsx"
+
+    # Process the file and get the processed output and filtered data
+    processed_file, filtered_table = process_excel_with_fuzzy_matching(uploaded_file, sample_file)
 
     # Display the 'Filtered' table on the web page
     st.write("Только материальные новости:")
     st.dataframe(filtered_table)
 
-    # Download button for the processed file
+    # Provide a download button for the processed file
     st.download_button(
         label="Ссылка на загрузку",
         data=processed_file,
