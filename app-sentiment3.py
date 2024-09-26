@@ -24,7 +24,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     unique_companies = df['Объект'].dropna().unique().tolist()
 
     # Step 2: Fuzzy filter out similar news for the same company/bank
-    def fuzzy_deduplicate(df, column, threshold=90):
+    def fuzzy_deduplicate(df, column, threshold=75):
         seen_texts = []
         indices_to_keep = []
         for i, text in enumerate(df[column]):
