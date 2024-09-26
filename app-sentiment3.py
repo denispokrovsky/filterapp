@@ -12,7 +12,7 @@ st.write("Загружайте и выгружайте!")
 # File uploader
 uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
 
-def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90):
+def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70):
     # Load all sheets from the uploaded Excel file
     excel_file = pd.ExcelFile(file)
     sheets = {sheet_name: excel_file.parse(sheet_name) for sheet_name in excel_file.sheet_names}
@@ -24,7 +24,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     unique_companies = df['Объект'].dropna().unique().tolist()
 
     # Step 2: Fuzzy filter out similar news for the same company/bank
-    def fuzzy_deduplicate(df, column, threshold=75):
+    def fuzzy_deduplicate(df, column, threshold=90):
         seen_texts = []
         indices_to_keep = []
         for i, text in enumerate(df[column]):
