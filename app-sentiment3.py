@@ -20,6 +20,9 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
     # Access the required sheet 'Публикации'
     df = sheets['Публикации'].copy()
 
+    # Track original number of news (X)
+    original_news_count = len(df)
+
     # Step 1: Generate the list of unique companies from the 'Объект' column
     unique_companies = df['Объект'].dropna().unique().tolist()
 
@@ -38,7 +41,13 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
         return df.iloc[indices_to_keep]
 
     # Apply fuzzy deduplication on 'Выдержки из текста' column
-    df = df.groupby('Объект').apply(lambda x: fuzzy_deduplicate(x, 'Выдержки из текста', similarity_threshold)).reset_index(drop=True)
+    df_deduplicated = df.groupby('Объект').apply(lambda x: fuzzy_deduplicate(x, 'Выдержки из текста', similarity_threshold)).reset_index(drop=True)
+
+    # Track the number of remaining news (Z)
+    remaining_news_count = len(df_deduplicated)
+
+    # Calculate number of duplicates removed (Y)
+    duplicates_removed = original_news_count - remaining_news_count
 
     # Step 3: Define relevance assessment (including Russian-specific keywords)
     direct_keywords = ['убыток', 'прибыль', 'судебное дело', 'банкротство', 'потеря', 'миллиард', 'млн', 'миллиардов', 'миллионов', 'выручка']
@@ -57,7 +66,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
         else:
             return 'н/д'
 
-    df['Relevance'] = df.apply(lambda row: assess_relevance(row['Выдержки из текста'], row['Объект']), axis=1)
+    df_deduplicated['Relevance'] = df_deduplicated.apply(lambda row: assess_relevance(row['Выдержки из текста'], row['Объект']), axis=1)
 
     # Step 4: Sentiment assessment
     negative_keywords = ['убыток', 'потеря', 'снижение', 'упадок', 'падение']
@@ -74,7 +83,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
         else:
             return 'нейтрально'
 
-    df['Sentiment'] = df['Выдержки из текста'].apply(assess_sentiment)
+    df_deduplicated['Sentiment'] = df_deduplicated['Выдержки из текста'].apply(assess_sentiment)
 
     # Step 5: Materiality assessment
     def assess_probable_materiality(text):
@@ -88,10 +97,10 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
         else:
             return 'незначительна'
 
-    df['Materiality_Level'] = df['Выдержки из текста'].apply(assess_probable_materiality)
+    df_deduplicated['Materiality_Level'] = df_deduplicated['Выдержки из текста'].apply(assess_probable_materiality)
 
     # Step 6: Prepare summary for "Сводка" sheet
-    dashboard_summary = df.groupby('Объект').agg(
+    dashboard_summary = df_deduplicated.groupby('Объект').agg(
         News_Count=('Выдержки из текста', 'count'),
         Significant_Texts=('Materiality_Level', lambda x: (x == 'значительна').sum()),
         Negative_Texts=('Sentiment', lambda x: (x == 'негатив').sum()),
@@ -103,7 +112,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
     dashboard_summary = dashboard_summary.sort_values(by=['News_Count', 'Significant_Texts'], ascending=[False, False])
 
     # Step 7: Filter only material news, ensuring non-duplicate texts
-    filtered_news = df[df['Relevance'] == 'материальна']
+    filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
     filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
 
     # Load the sample Excel file to maintain formatting
@@ -121,7 +130,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
 
     # Write to the 'Публикации' sheet
     publications_sheet = book['Публикации']
-    for r_idx, row in df.iterrows():
+    for r_idx, row in df_deduplicated.iterrows():
         for c_idx, value in enumerate(row):
             publications_sheet.cell(row=2 + r_idx, column=c_idx + 1).value = value
 
@@ -140,17 +149,19 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
     book.save(output)
     output.seek(0)
 
-    return output, filtered_news
+    return output, filtered_news, original_news_count, duplicates_removed, remaining_news_count
 
 # Handle file upload and processing
 if uploaded_file is not None:
     # Store the path to the sample Excel file for formatting
     sample_file = "sample_file.xlsx"
 
-    # Process the file and get the processed output and filtered data
-    processed_file, filtered_table = process_excel_with_fuzzy_matching(uploaded_file, sample_file)
+    # Process the file and get the processed output, filtered data, and counts
+    processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count = process_excel_with_fuzzy_matching(uploaded_file, sample_file)
 
     # Display the filtered news as it appears in Excel
+    st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
+    
     st.write("Только материальные новости:")
     st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
 
