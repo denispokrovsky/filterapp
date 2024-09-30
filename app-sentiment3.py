@@ -164,6 +164,7 @@ if uploaded_file is not None:
     
     st.write("Только материальные новости:")
     st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
+    st.dataframe (dashboard_summary_sorted[['Объект', 'News_Count', 'Significant_Texts', 'Negative_Texts', 'Positive_Texts', 'Risk_Level']])
 
     # Provide a download button for the processed file
     st.download_button(
