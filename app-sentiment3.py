@@ -109,7 +109,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     ).reset_index()
 
     # Sort the summary by News_Count first and Significant_Texts second (both in descending order)
-    dashboard_summary_sorted = dashboard_summary.sort_values(by=['News_Count', 'Significant_Texts'], ascending=[False, False])
+    dashboard_summary_sorted = dashboard_summary.sort_values(by=['Significant_Texts', 'News_Count'], ascending=[False, False])
 
     # Step 7: Filter only material news, ensuring non-duplicate texts
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
