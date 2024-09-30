@@ -161,8 +161,6 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
     return output, filtered_news, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted
 
 
-filtere
-
 
 # Handle file upload and processing
 if uploaded_file is not None:
