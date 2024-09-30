@@ -12,7 +12,7 @@ st.write("Загружайте и выгружайте!")
 # File uploader
 uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
 
-def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90):
+def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65):
     # Load all sheets from the uploaded Excel file
     excel_file = pd.ExcelFile(file)
     sheets = {sheet_name: excel_file.parse(sheet_name) for sheet_name in excel_file.sheet_names}
@@ -110,7 +110,16 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
 
     # Sort the summary by News_Count first and Significant_Texts second (both in descending order)
     dashboard_summary_sorted = dashboard_summary.sort_values(by=['Significant_Texts', 'News_Count'], ascending=[False, False])
-
+    
+    # Rename columns for display in Streamlit
+    dashboard_summary_sorted.columns = [
+        'Компания',
+        'Всего публикаций',
+        'Из них: материальных',
+        'Из них: негативных',
+        'Из них: позитивных',
+        'Уровень материального негатива'
+        ]
     # Step 7: Filter only material news, ensuring non-duplicate texts
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
     filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
@@ -121,12 +130,12 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     # Write sorted data to the "Сводка" sheet
     dashboard_sheet = book['Сводка']
     for idx, row in dashboard_summary_sorted.iterrows():
-        dashboard_sheet[f'E{4 + idx}'] = row['Объект']
-        dashboard_sheet[f'F{4 + idx}'] = row['News_Count']
-        dashboard_sheet[f'G{4 + idx}'] = row['Significant_Texts']
-        dashboard_sheet[f'H{4 + idx}'] = row['Negative_Texts']
-        dashboard_sheet[f'I{4 + idx}'] = row['Positive_Texts']
-        dashboard_sheet[f'J{4 + idx}'] = row['Risk_Level']
+        dashboard_sheet[f'E{4 + idx}'] = row['Компания']
+        dashboard_sheet[f'F{4 + idx}'] = row['Всего публикаций']
+        dashboard_sheet[f'G{4 + idx}'] = row['Из них: материальных']
+        dashboard_sheet[f'H{4 + idx}'] = row['Из них: негативных']
+        dashboard_sheet[f'I{4 + idx}'] = row['Из них: позитивных']
+        dashboard_sheet[f'J{4 + idx}'] = row['Уровень материального негатива']
 
     # Write to the 'Публикации' sheet
     publications_sheet = book['Публикации']
@@ -150,6 +159,10 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     output.seek(0)
 
     return output, filtered_news, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted
+
+
+filtere
+
 
 # Handle file upload and processing
 if uploaded_file is not None:
