@@ -111,16 +111,6 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     # Sort the summary by News_Count first and Significant_Texts second (both in descending order)
     dashboard_summary_sorted = dashboard_summary.sort_values(by=['News_Count', 'Significant_Texts'], ascending=[False, False])
 
-    # Rename columns for display in Streamlit
-    dashboard_summary_sorted.columns = [
-        'Компания',
-        'Всего публикаций',
-        'Из них: материальных',
-        'Из них: негативных',
-        'Из них: позитивных',
-        'Уровень материального негатива'
-    ]
-
     # Step 7: Filter only material news, ensuring non-duplicate texts
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
     filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
@@ -131,12 +121,12 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     # Write sorted data to the "Сводка" sheet
     dashboard_sheet = book['Сводка']
     for idx, row in dashboard_summary_sorted.iterrows():
-        dashboard_sheet[f'E{4 + idx}'] = row['Компания']
-        dashboard_sheet[f'F{4 + idx}'] = row['Всего публикаций']
-        dashboard_sheet[f'G{4 + idx}'] = row['Из них: материальных']
-        dashboard_sheet[f'H{4 + idx}'] = row['Из них: негативных']
-        dashboard_sheet[f'I{4 + idx}'] = row['Из них: позитивных']
-        dashboard_sheet[f'J{4 + idx}'] = row['Уровень материального негатива']
+        dashboard_sheet[f'E{4 + idx}'] = row['Объект']
+        dashboard_sheet[f'F{4 + idx}'] = row['News_Count']
+        dashboard_sheet[f'G{4 + idx}'] = row['Significant_Texts']
+        dashboard_sheet[f'H{4 + idx}'] = row['Negative_Texts']
+        dashboard_sheet[f'I{4 + idx}'] = row['Positive_Texts']
+        dashboard_sheet[f'J{4 + idx}'] = row['Risk_Level']
 
     # Write to the 'Публикации' sheet
     publications_sheet = book['Публикации']
@@ -175,4 +165,14 @@ if uploaded_file is not None:
     st.write("Только материальные новости:")
     st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
 
-    # Display
+    # Display the sorted dashboard summary
+    st.write("Сводка:")
+    st.dataframe(dashboard_summary_sorted)
+
+    # Provide a download button for the processed file
+    st.download_button(
+        label="СКАЧАЙ ЗДЕСЬ:",
+        data=processed_file,
+        file_name="processed_news.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
