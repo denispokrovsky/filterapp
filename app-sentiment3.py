@@ -149,7 +149,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     book.save(output)
     output.seek(0)
 
-    return output, filtered_news, original_news_count, duplicates_removed, remaining_news_count
+    return output, filtered_news, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted
 
 # Handle file upload and processing
 if uploaded_file is not None:
@@ -157,14 +157,17 @@ if uploaded_file is not None:
     sample_file = "sample_file.xlsx"
 
     # Process the file and get the processed output, filtered data, and counts
-    processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count = process_excel_with_fuzzy_matching(uploaded_file, sample_file)
+    processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted = process_excel_with_fuzzy_matching(uploaded_file, sample_file)
 
     # Display the filtered news as it appears in Excel
     st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
     
     st.write("Только материальные новости:")
     st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
-    st.dataframe (dashboard_summary_sorted[['Объект', 'News_Count', 'Significant_Texts', 'Negative_Texts', 'Positive_Texts', 'Risk_Level']])
+
+    # Display the sorted dashboard summary
+    st.write("Сводка:")
+    st.dataframe(dashboard_summary_sorted)
 
     # Provide a download button for the processed file
     st.download_button(
