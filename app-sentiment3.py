@@ -6,8 +6,12 @@ from rapidfuzz import fuzz
 from openpyxl import load_workbook
 
 # Streamlit app layout
+
+st.set_page_config(page_title=":::мониторинг новостного потока:::", layout="wide")
+
 st.title('Фильтр новостного файла в формате СКАН-Интерфакс на релевантность и значимость!')
 st.write("Загружайте и выгружайте!")
+
 
 # File uploader
 uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
