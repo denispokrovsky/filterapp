@@ -12,7 +12,7 @@ st.write("Загружайте и выгружайте!")
 # File uploader
 uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
 
-def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70):
+def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90):
     # Load all sheets from the uploaded Excel file
     excel_file = pd.ExcelFile(file)
     sheets = {sheet_name: excel_file.parse(sheet_name) for sheet_name in excel_file.sheet_names}
@@ -109,7 +109,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
     ).reset_index()
 
     # Sort the summary by News_Count first and Significant_Texts second (both in descending order)
-    dashboard_summary = dashboard_summary.sort_values(by=['News_Count', 'Significant_Texts'], ascending=[True, True])
+    dashboard_summary_sorted = dashboard_summary.sort_values(by=['News_Count', 'Significant_Texts'], ascending=[False, False])
 
     # Step 7: Filter only material news, ensuring non-duplicate texts
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
@@ -118,9 +118,9 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=70
     # Load the sample Excel file to maintain formatting
     book = load_workbook(sample_file)
 
-    # Write to the "Сводка" sheet
+    # Write sorted data to the "Сводка" sheet
     dashboard_sheet = book['Сводка']
-    for idx, row in dashboard_summary.iterrows():
+    for idx, row in dashboard_summary_sorted.iterrows():
         dashboard_sheet[f'E{4 + idx}'] = row['Объект']
         dashboard_sheet[f'F{4 + idx}'] = row['News_Count']
         dashboard_sheet[f'G{4 + idx}'] = row['Significant_Texts']
