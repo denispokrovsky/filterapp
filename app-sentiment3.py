@@ -125,16 +125,6 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
     filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
 
-    # Rename columns for the filtered table
-    filtered_news.columns = [
-        'Объект',
-        'Материальность',
-        'Окраска',
-        'Уровень материальности',
-        'Заголовок',
-        'Выдержки из текста'
-    ]
-
     # Load the sample Excel file to maintain formatting
     book = load_workbook(sample_file)
 
@@ -158,10 +148,10 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     filtered_sheet = book['Значимые']
     for f_idx, row in filtered_news.iterrows():
         filtered_sheet[f'C{3 + f_idx}'] = row['Объект']
-        filtered_sheet[f'D{3 + f_idx}'] = row['Материальность']
-        filtered_sheet[f'E{3 + f_idx}'] = row['Окраска']
-        filtered_sheet[f'F{3 + f_idx}'] = row['Уровень материальности']
-        filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок']
+        filtered_sheet[f'D{3 + f_idx}'] = row['Relevance']
+        filtered_sheet[f'E{3 + f_idx}'] = row['Sentiment']
+        filtered_sheet[f'F{3 + f_idx}'] = row['Materiality_Level']
+        filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок'] if 'Заголовок' in row else ''
         filtered_sheet[f'H{3 + f_idx}'] = row['Выдержки из текста']
 
     # Save the final file to a BytesIO buffer
@@ -183,16 +173,6 @@ if uploaded_file is not None:
     st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
     
     st.write("Только материальные новости:")
-    st.dataframe(filtered_table[['Объект', 'Материальность', 'Окраска', 'Уровень материальности', 'Заголовок', 'Выдержки из текста']])
+    st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
 
-    # Display the sorted dashboard summary
-    st.write("Сводка:")
-    st.dataframe(dashboard_summary_sorted)
-
-    # Provide a download button for the processed file
-    st.download_button(
-        label="СКАЧАЙ ЗДЕСЬ:",
-        data=processed_file,
-        file_name="processed_news.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    # Display
