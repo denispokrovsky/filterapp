@@ -109,8 +109,9 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     ).reset_index()
 
     # Sort the summary by News_Count first and Significant_Texts second (both in descending order)
-    dashboard_summary_sorted = dashboard_summary.sort_values(by=['Significant_Texts', 'News_Count'], ascending=[False, False])
+    dashboard_summary_sorted = dashboard_summary.sort_values(by=['News_Count', 'Significant_Texts'], ascending=[False, False])
 
+    # Rename columns for display in Streamlit
     dashboard_summary_sorted.columns = [
         'Компания',
         'Всего публикаций',
@@ -118,11 +119,21 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
         'Из них: негативных',
         'Из них: позитивных',
         'Уровень материального негатива'
-        ]
+    ]
 
     # Step 7: Filter only material news, ensuring non-duplicate texts
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
     filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
+
+    # Rename columns for the filtered table
+    filtered_news.columns = [
+        'Объект',
+        'Материальность',
+        'Окраска',
+        'Уровень материальности',
+        'Заголовок',
+        'Выдержки из текста'
+    ]
 
     # Load the sample Excel file to maintain formatting
     book = load_workbook(sample_file)
@@ -130,12 +141,12 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     # Write sorted data to the "Сводка" sheet
     dashboard_sheet = book['Сводка']
     for idx, row in dashboard_summary_sorted.iterrows():
-        dashboard_sheet[f'E{4 + idx}'] = row['Объект']
-        dashboard_sheet[f'F{4 + idx}'] = row['News_Count']
-        dashboard_sheet[f'G{4 + idx}'] = row['Significant_Texts']
-        dashboard_sheet[f'H{4 + idx}'] = row['Negative_Texts']
-        dashboard_sheet[f'I{4 + idx}'] = row['Positive_Texts']
-        dashboard_sheet[f'J{4 + idx}'] = row['Risk_Level']
+        dashboard_sheet[f'E{4 + idx}'] = row['Компания']
+        dashboard_sheet[f'F{4 + idx}'] = row['Всего публикаций']
+        dashboard_sheet[f'G{4 + idx}'] = row['Из них: материальных']
+        dashboard_sheet[f'H{4 + idx}'] = row['Из них: негативных']
+        dashboard_sheet[f'I{4 + idx}'] = row['Из них: позитивных']
+        dashboard_sheet[f'J{4 + idx}'] = row['Уровень материального негатива']
 
     # Write to the 'Публикации' sheet
     publications_sheet = book['Публикации']
@@ -147,10 +158,10 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     filtered_sheet = book['Значимые']
     for f_idx, row in filtered_news.iterrows():
         filtered_sheet[f'C{3 + f_idx}'] = row['Объект']
-        filtered_sheet[f'D{3 + f_idx}'] = row['Relevance']
-        filtered_sheet[f'E{3 + f_idx}'] = row['Sentiment']
-        filtered_sheet[f'F{3 + f_idx}'] = row['Materiality_Level']
-        filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок'] if 'Заголовок' in row else ''
+        filtered_sheet[f'D{3 + f_idx}'] = row['Материальность']
+        filtered_sheet[f'E{3 + f_idx}'] = row['Окраска']
+        filtered_sheet[f'F{3 + f_idx}'] = row['Уровень материальности']
+        filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок']
         filtered_sheet[f'H{3 + f_idx}'] = row['Выдержки из текста']
 
     # Save the final file to a BytesIO buffer
@@ -171,17 +182,8 @@ if uploaded_file is not None:
     # Display the filtered news as it appears in Excel
     st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
     
-    filtered_table.columns = [
-        'Объект',
-        'Материальность',
-        'Окраска',
-        'Уровень материальности',
-        'Заголовок'
-        ]
-
-
     st.write("Только материальные новости:")
-    st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
+    st.dataframe(filtered_table[['Объект', 'Материальность', 'Окраска', 'Уровень материальности', 'Заголовок', 'Выдержки из текста']])
 
     # Display the sorted dashboard summary
     st.write("Сводка:")
