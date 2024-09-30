@@ -109,7 +109,16 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=90
     ).reset_index()
 
     # Sort the summary by News_Count first and Significant_Texts second (both in descending order)
-    dashboard_summary_sorted = dashboard_summary.sort_values(by=['News_Count', 'Significant_Texts'], ascending=[False, False])
+    dashboard_summary_sorted = dashboard_summary.sort_values(by=['Significant_Texts', 'News_Count'], ascending=[False, False])
+
+    dashboard_summary_sorted.columns = [
+        'Компания',
+        'Всего публикаций',
+        'Из них: материальных',
+        'Из них: негативных',
+        'Из них: позитивных',
+        'Уровень материального негатива'
+        ]
 
     # Step 7: Filter only material news, ensuring non-duplicate texts
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
@@ -162,6 +171,15 @@ if uploaded_file is not None:
     # Display the filtered news as it appears in Excel
     st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
     
+    filtered_table.columns = [
+        'Объект',
+        'Материальность',
+        'Окраска',
+        'Уровень материальности',
+        'Заголовок'
+        ]
+
+
     st.write("Только материальные новости:")
     st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
 
