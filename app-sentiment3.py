@@ -4,18 +4,37 @@ import re
 from io import BytesIO
 from rapidfuzz import fuzz
 from openpyxl import load_workbook
+from langchain.llms import OpenAI
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
 
 # Streamlit app layout
-
-st.set_page_config(page_title=":::мониторинг новостного потока:::", layout="wide")
+st.set_page_config(page_title="::: мониторинг новостного потока :::", layout="wide")
 
 st.title('Фильтр новостного файла в формате СКАН-Интерфакс на релевантность и значимость!')
 st.write("Загружайте и выгружайте!")
 
-
 # File uploader
 uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
 
+# Access the OpenAI API key from Streamlit secrets
+openai_api_key = st.secrets["OPENAI_API_KEY"]
+
+# Initialize OpenAI LLM
+llm = OpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=openai_api_key)
+
+# Define prompt templates for LangChain
+risk_prompt_template = PromptTemplate(
+    input_variables=["text", "company"],
+    template="Текст: {text}\nКомпания: {company}\nЕсть ли риск убытка для этой компании? Ответьте 'Риск убытка' или 'Нет риска убытка'."
+)
+
+comment_prompt_template = PromptTemplate(
+    input_variables=["text", "company"],
+    template="Текст: {text}\nКомпания: {company}\nСколько примерно может потерять компания? Дайте комментарий не более 200 слов."
+)
+
+# Function to process the Excel file and add new columns
 def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65):
     # Load all sheets from the uploaded Excel file
     excel_file = pd.ExcelFile(file)
@@ -31,7 +50,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
     unique_companies = df['Объект'].dropna().unique().tolist()
 
     # Step 2: Fuzzy filter out similar news for the same company/bank
-    def fuzzy_deduplicate(df, column, threshold=90):
+    def fuzzy_deduplicate(df, column, threshold=65):
         seen_texts = []
         indices_to_keep = []
         for i, text in enumerate(df[column]):
@@ -103,7 +122,14 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
 
     df_deduplicated['Materiality_Level'] = df_deduplicated['Выдержки из текста'].apply(assess_probable_materiality)
 
-    # Step 6: Prepare summary for "Сводка" sheet
+    # Step 6: Risk assessment using LangChain
+    risk_chain = LLMChain(llm=llm, prompt=risk_prompt_template)
+    comment_chain = LLMChain(llm=llm, prompt=comment_prompt_template)
+
+    df_deduplicated['Risk of loss'] = df_deduplicated.apply(lambda row: risk_chain.run({"text": row['Выдержки из текста'], "company": row['Объект']}), axis=1)
+    df_deduplicated['Comment'] = df_deduplicated.apply(lambda row: comment_chain.run({"text": row['Выдержки из текста'], "company": row['Объект']}), axis=1)
+
+    # Step 7: Prepare summary for "Сводка" sheet
     dashboard_summary = df_deduplicated.groupby('Объект').agg(
         News_Count=('Выдержки из текста', 'count'),
         Significant_Texts=('Materiality_Level', lambda x: (x == 'значительна').sum()),
@@ -114,7 +140,10 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
 
     # Sort the summary by News_Count first and Significant_Texts second (both in descending order)
     dashboard_summary_sorted = dashboard_summary.sort_values(by=['Significant_Texts', 'News_Count'], ascending=[False, False])
-    
+
+    # Create new dashboard summary filtered by 'Риск убытка'
+    new_dashboard_summary = df_deduplicated[df_deduplicated['Risk of loss'] == 'Риск убытка'][['Объект', 'Заголовок', 'Выдержки из текста', 'Risk of loss', 'Comment']]
+
     # Rename columns for display in Streamlit
     dashboard_summary_sorted.columns = [
         'Компания',
@@ -124,7 +153,7 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
         'Из них: позитивных',
         'Уровень материального негатива'
         ]
-    # Step 7: Filter only material news, ensuring non-duplicate texts
+
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
     filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
 
@@ -157,13 +186,13 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
         filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок'] if 'Заголовок' in row else ''
         filtered_sheet[f'H{3 + f_idx}'] = row['Выдержки из текста']
 
+
     # Save the final file to a BytesIO buffer
     output = BytesIO()
     book.save(output)
     output.seek(0)
 
-    return output, filtered_news, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted
-
+    return output, df_deduplicated, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted, new_dashboard_summary
 
 
 # Handle file upload and processing
@@ -172,7 +201,7 @@ if uploaded_file is not None:
     sample_file = "sample_file.xlsx"
 
     # Process the file and get the processed output, filtered data, and counts
-    processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted = process_excel_with_fuzzy_matching(uploaded_file, sample_file)
+    processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted, new_dashboard_summary = process_excel_with_fuzzy_matching(uploaded_file, sample_file)
 
     # Display the filtered news as it appears in Excel
     st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
@@ -183,6 +212,10 @@ if uploaded_file is not None:
     # Display the sorted dashboard summary
     st.write("Сводка:")
     st.dataframe(dashboard_summary_sorted)
+
+    # Display the new dashboard summary filtered by the presence of 'Риск убытка'
+    st.write("Сводка с риском убытка:")
+    st.dataframe(new_dashboard_summary)
 
     # Provide a download button for the processed file
     st.download_button(
