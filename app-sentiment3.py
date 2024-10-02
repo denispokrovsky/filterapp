@@ -262,7 +262,7 @@ if uploaded_file is not None:
     # Step 2: Introduce a button to proceed with LLM analysis
     if st.button("Применить анализ LLM"):
         # Apply LLM analysis and generate a new processed file with LLM results
-        processed_llm_file, new_dashboard_summary = apply_llm_analysis(df_deduplicated, sample_file)
+        processed_llm_file, new_dashboard_summary = apply_llm_analysis(filtered_table, sample_file)
 
         # Display the new dashboard summary with LLM analysis
         st.write("Сводка с анализом LLM (Риск убытка):")
