@@ -4,3 +4,4 @@ numpy
 openpyxl
 numpy
 rapidfuzz
+langchain
