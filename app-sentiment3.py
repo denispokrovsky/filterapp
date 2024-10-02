@@ -237,7 +237,7 @@ if uploaded_file is not None:
     # Store the path to the sample Excel file for formatting
     sample_file = "sample_file.xlsx"
 
-    # Step 1: Process the file without LLM analysis and display the dashboard summary
+    # Step 1: Process the file without LLM analysis and display the dashboard summary #new dashboard summary - удалено
     processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted= process_excel_without_llm(uploaded_file, sample_file)
 
     # Display the filtered news as it appears in Excel
