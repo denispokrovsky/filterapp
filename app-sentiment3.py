@@ -34,7 +34,7 @@ comment_prompt_template = PromptTemplate(
 # Function to call OpenAI's API with the new ChatCompletion method
 def call_openai(prompt):
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  # Use GPT-4 if available
+        model="gpt-3.5-turbo",  # You can change to "gpt-4" if available
         messages=[
             {"role": "system", "content": "You are a financial risk assessment assistant."},
             {"role": "user", "content": prompt}
