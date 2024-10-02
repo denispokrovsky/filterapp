@@ -238,7 +238,7 @@ if uploaded_file is not None:
     sample_file = "sample_file.xlsx"
 
     # Step 1: Process the file without LLM analysis and display the dashboard summary
-     processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted, new_dashboard_summary = process_excel_without_llm(uploaded_file, sample_file)
+    processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted, new_dashboard_summary = process_excel_without_llm(uploaded_file, sample_file)
 
     # Display the filtered news as it appears in Excel
     st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
