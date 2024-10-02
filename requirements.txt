@@ -6,3 +6,4 @@ numpy
 rapidfuzz
 langchain
 pydantic<2.0
+openai
