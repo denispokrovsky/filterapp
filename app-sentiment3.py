@@ -146,6 +146,22 @@ def process_excel_without_llm(file, sample_file, similarity_threshold=65):
     output = BytesIO()
     book = load_workbook(sample_file)
 
+ # Rename columns for display in Streamlit
+    dashboard_summary_sorted.columns = [
+        'Компания',
+        'Всего публикаций',
+        'Из них: материальных',
+        'Из них: негативных',
+        'Из них: позитивных',
+        'Уровень материального негатива'
+        ]
+
+    filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
+    filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
+
+    # Load the sample Excel file to maintain formatting
+    book = load_workbook(sample_file)
+
     # Write sorted data to the "Сводка" sheet
     dashboard_sheet = book['Сводка']
     for idx, row in dashboard_summary_sorted.iterrows():
@@ -156,10 +172,38 @@ def process_excel_without_llm(file, sample_file, similarity_threshold=65):
         dashboard_sheet[f'I{4 + idx}'] = row['Из них: позитивных']
         dashboard_sheet[f'J{4 + idx}'] = row['Уровень материального негатива']
 
+    # Write to the 'Публикации' sheet
+    publications_sheet = book['Публикации']
+    for r_idx, row in df_deduplicated.iterrows():
+        for c_idx, value in enumerate(row):
+            publications_sheet.cell(row=2 + r_idx, column=c_idx + 1).value = value
+
+    # Write to the 'Значимые' sheet, no empty rows
+    filtered_sheet = book['Значимые']
+    for f_idx, row in filtered_news.iterrows():
+        filtered_sheet[f'C{3 + f_idx}'] = row['Объект']
+        filtered_sheet[f'D{3 + f_idx}'] = row['Relevance']
+        filtered_sheet[f'E{3 + f_idx}'] = row['Sentiment']
+        filtered_sheet[f'F{3 + f_idx}'] = row['Materiality_Level']
+        filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок'] if 'Заголовок' in row else ''
+        filtered_sheet[f'H{3 + f_idx}'] = row['Выдержки из текста']
+    
+    # Write sorted data to the "Сводка" sheet
+    dashboard_sheet = book['Сводка']
+    for idx, row in dashboard_summary_sorted.iterrows():
+        dashboard_sheet[f'E{4 + idx}'] = row['Компания']
+        dashboard_sheet[f'F{4 + idx}'] = row['Всего публикаций']
+        dashboard_sheet[f'G{4 + idx}'] = row['Из них: материальных']
+        dashboard_sheet[f'H{4 + idx}'] = row['Из них: негативных']
+        dashboard_sheet[f'I{4 + idx}'] = row['Из них: позитивных']
+        dashboard_sheet[f'J{4 + idx}'] = row['Уровень материального негатива']
+
+# Save the final file to a BytesIO buffer
+    output = BytesIO()
     book.save(output)
     output.seek(0)
 
-    return output, df_deduplicated, dashboard_summary_sorted
+    return output, df_deduplicated, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted, new_dashboard_summary
 
 # Function to apply LLM analysis and generate a new Excel file
 def apply_llm_analysis(df_deduplicated, sample_file):
@@ -194,7 +238,14 @@ if uploaded_file is not None:
     sample_file = "sample_file.xlsx"
 
     # Step 1: Process the file without LLM analysis and display the dashboard summary
-    processed_file, df_deduplicated, dashboard_summary_sorted = process_excel_without_llm(uploaded_file, sample_file)
+     processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted, new_dashboard_summary = process_excel_without_llm(uploaded_file, sample_file)
+
+    # Display the filtered news as it appears in Excel
+    st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
+    
+    st.write("Только материальные новости:")
+    st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
+
 
     # Display the initial dashboard summary without LLM
     st.write("Сводка без анализа LLM:")
