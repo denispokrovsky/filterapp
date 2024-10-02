@@ -5,4 +5,4 @@ openpyxl
 numpy
 rapidfuzz
 langchain
-pydantic
+pydantic<2.0
