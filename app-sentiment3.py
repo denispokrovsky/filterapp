@@ -126,8 +126,9 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
     risk_chain = LLMChain(llm=llm, prompt=risk_prompt_template)
     comment_chain = LLMChain(llm=llm, prompt=comment_prompt_template)
 
-    df_deduplicated['Risk of loss'] = df_deduplicated.apply(lambda row: risk_chain.run({"text": row['Выдержки из текста'], "company": row['Объект']}), axis=1)
-    df_deduplicated['Comment'] = df_deduplicated.apply(lambda row: comment_chain.run({"text": row['Выдержки из текста'], "company": row['Объект']}), axis=1)
+    # Using apply() to handle multiple inputs (text and company)
+    df_deduplicated['Risk of loss'] = df_deduplicated.apply(lambda row: risk_chain.apply([{"text": row['Выдержки из текста'], "company": row['Объект']}])[0], axis=1)
+    df_deduplicated['Comment'] = df_deduplicated.apply(lambda row: comment_chain.apply([{"text": row['Выдержки из текста'], "company": row['Объект']}])[0], axis=1)
 
     # Step 7: Prepare summary for "Сводка" sheet
     dashboard_summary = df_deduplicated.groupby('Объект').agg(
@@ -185,7 +186,6 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
         filtered_sheet[f'F{3 + f_idx}'] = row['Materiality_Level']
         filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок'] if 'Заголовок' in row else ''
         filtered_sheet[f'H{3 + f_idx}'] = row['Выдержки из текста']
-
 
     # Save the final file to a BytesIO buffer
     output = BytesIO()
