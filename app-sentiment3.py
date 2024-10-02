@@ -4,8 +4,7 @@ import re
 from io import BytesIO
 from rapidfuzz import fuzz
 from openpyxl import load_workbook
-from langchain.llms import OpenAI
-from langchain.chains import LLMChain
+import openai
 from langchain.prompts import PromptTemplate
 
 # Streamlit app layout
@@ -19,9 +18,7 @@ uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
 
 # Access the OpenAI API key from Streamlit secrets
 openai_api_key = st.secrets["OPENAI_API_KEY"]
-
-# Initialize OpenAI LLM
-llm = OpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=openai_api_key)
+openai.api_key = openai_api_key  # Set OpenAI API key
 
 # Define prompt templates for LangChain
 risk_prompt_template = PromptTemplate(
@@ -33,6 +30,17 @@ comment_prompt_template = PromptTemplate(
     input_variables=["text", "company"],
     template="Текст: {text}\nКомпания: {company}\nСколько примерно может потерять компания? Дайте комментарий не более 200 слов."
 )
+
+# Function to call OpenAI's API with the new ChatCompletion method
+def call_openai(prompt):
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",  # Use GPT-4 if available
+        messages=[
+            {"role": "system", "content": "You are a financial risk assessment assistant."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response['choices'][0]['message']['content']
 
 # Function to process the Excel file and add new columns
 def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65):
@@ -122,13 +130,9 @@ def process_excel_with_fuzzy_matching(file, sample_file, similarity_threshold=65
 
     df_deduplicated['Materiality_Level'] = df_deduplicated['Выдержки из текста'].apply(assess_probable_materiality)
 
-    # Step 6: Risk assessment using LangChain
-    risk_chain = LLMChain(llm=llm, prompt=risk_prompt_template)
-    comment_chain = LLMChain(llm=llm, prompt=comment_prompt_template)
-
-    # Using apply() to handle multiple inputs (text and company)
-    df_deduplicated['Risk of loss'] = df_deduplicated.apply(lambda row: risk_chain.apply([{"text": row['Выдержки из текста'], "company": row['Объект']}])[0], axis=1)
-    df_deduplicated['Comment'] = df_deduplicated.apply(lambda row: comment_chain.apply([{"text": row['Выдержки из текста'], "company": row['Объект']}])[0], axis=1)
+    # Step 6: Risk assessment using the new OpenAI ChatCompletion API
+    df_deduplicated['Risk of loss'] = df_deduplicated.apply(lambda row: call_openai(risk_prompt_template.format(text=row['Выдержки из текста'], company=row['Объект'])), axis=1)
+    df_deduplicated['Comment'] = df_deduplicated.apply(lambda row: call_openai(comment_prompt_template.format(text=row['Выдержки из текста'], company=row['Объект'])), axis=1)
 
     # Step 7: Prepare summary for "Сводка" sheet
     dashboard_summary = df_deduplicated.groupby('Объект').agg(
