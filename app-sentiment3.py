@@ -17,7 +17,7 @@ st.write("Загружайте и выгружайте!")
 uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
 
 # Access the OpenAI API key from Streamlit secrets
-openai_api_key = st.secrets["OPENAI_API_KEY"]
+openai_api_key = st.secrets["OPENAI_API_KEY2"]
 openai.api_key = openai_api_key  # Set OpenAI API key
 
 # Define prompt templates for LangChain
