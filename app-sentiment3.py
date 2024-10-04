@@ -23,12 +23,12 @@ openai.api_key = openai_api_key  # Set OpenAI API key
 # Define prompt templates for LangChain
 risk_prompt_template = PromptTemplate(
     input_variables=["text", "company"],
-    template="Текст: {text}\nКомпания: {company}\nЕсть ли риск убытка для этой компании в ближайшие шесть месяцев? Ответьте 'Риск убытка' или 'Нет риска убытка'."
+    template="Текст: {text}\nКомпания: {company}\nЕсть ли убыток о котором говорится в новости или риск убытка для этой компании в ближайшие шесть месяцев? Ответьте 'Риск убытка' или 'Нет риска убытка'."
 )
 
 comment_prompt_template = PromptTemplate(
     input_variables=["text", "company"],
-    template="Текст: {text}\nКомпания: {company}\nСколько примерно может потерять компания? Дайте комментарий не более 100 слов с конкретной оценкой суммы убытка"
+    template="Текст: {text}\nКомпания: {company}\nСколько примерно может составить или составил убыток? Дайте комментарий не более 100 слов с конкретной оценкой суммы убытка"
 )
 
 # Function to call OpenAI's API with the new ChatCompletion method
@@ -36,7 +36,7 @@ def call_openai(prompt):
     response = openai.ChatCompletion.create(
         model="gpt-4o",  # Updated model to gpt-4o
         messages=[
-            {"role": "system", "content": "You are a financial credit analyst. You assess probability of short-term credit risk of a loss in a space of 6 months of the company or a bank"},
+            {"role": "system", "content": "You are a financial credit analyst. You assess loss if it is told in the news or probability of short-term credit risk of a loss in a space of 6 months of the company or a bank"},
             {"role": "user", "content": prompt}
         ]
     )
