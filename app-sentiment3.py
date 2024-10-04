@@ -10,8 +10,8 @@ from langchain.prompts import PromptTemplate
 # Streamlit app layout
 st.set_page_config(page_title="::: мониторинг новостного потока :::", layout="wide")
 
-st.title('Фильтр новостного файла в формате СКАН-Интерфакс на релевантность и значимость!')
-st.write("Загружайте и выгружайте!")
+st.title('Фильтр новостного файла в формате СКАН-Интерфакс на релевантность и значимость.')
+st.write("Загружай и выгружай!")
 
 # File uploader
 uploaded_file = st.file_uploader("Выбери Excel файл", type=["xlsx"])
@@ -28,15 +28,15 @@ risk_prompt_template = PromptTemplate(
 
 comment_prompt_template = PromptTemplate(
     input_variables=["text", "company"],
-    template="Текст: {text}\nКомпания: {company}\nСколько примерно может потерять компания? Дайте комментарий не более 200 слов."
+    template="Текст: {text}\nКомпания: {company}\nСколько примерно может потерять компания? Дайте комментарий не более 100 слов с конкретной оценкой суммы убытка"
 )
 
 # Function to call OpenAI's API with the new ChatCompletion method
 def call_openai(prompt):
     response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",  # Updated model to gpt-4o-mini
+        model="gpt-4o",  # Updated model to gpt-4o
         messages=[
-            {"role": "system", "content": "You are a financial credit analyst. You assess probability of short-term credit risk of the company or a bank."},
+            {"role": "system", "content": "You are a financial credit analyst. You assess probability of short-term credit risk of a loss in a space of 6 months of the company or a bank"},
             {"role": "user", "content": prompt}
         ]
     )
@@ -224,30 +224,30 @@ if uploaded_file is not None:
     st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
 
     # Display the initial dashboard summary without LLM
-    st.write("Сводка без анализа LLM:")
+    st.write("Сводка с предварительным анализом:")
     st.dataframe(dashboard_summary_sorted)
 
     # Provide a download button for the first processed file (without LLM)
     st.download_button(
-        label="Скачать обработанный файл (без LLM)",
+        label="Скачать обработанный файл с предварительным анализом",
         data=processed_file,
-        file_name="processed_news_without_llm.xlsx",
+        file_name="новости-предварительный_анализ.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
     # Step 2: Introduce a button to proceed with LLM analysis
-    if st.button("Применить анализ LLM"):
+    if st.button("Применить углубленный анализ. Что скажет нейросеть?"):
         # Apply LLM analysis and generate a new processed file with LLM results
         processed_llm_file, new_dashboard_summary = apply_llm_analysis(filtered_table, "/tmp/processed_news_without_llm.xlsx")
 
         # Display the new dashboard summary with LLM analysis
-        st.write("Сводка с анализом LLM (Риск убытка):")
+        st.write("Сводка с углубленным анализом на предмет рисков:")
         st.dataframe(new_dashboard_summary)
 
         # Provide a download button for the second processed file (with LLM)
         st.download_button(
-            label="Скачать обработанный файл (с LLM)",
+            label="Скачать обработанный файл с углубленным анализом",
             data=processed_llm_file,
-            file_name="processed_news_with_llm.xlsx",
+            file_name="новости-углубленный_анализ.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
