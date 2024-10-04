@@ -213,6 +213,10 @@ if uploaded_file is not None:
     # Step 1: Process the file without LLM analysis and display the dashboard summary
     processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted = process_excel_without_llm(uploaded_file, sample_file)
 
+    # Save the processed file locally as `processed_news_without_llm.xlsx`
+    with open("/tmp/processed_news_without_llm.xlsx", "wb") as f:
+        f.write(processed_file.getbuffer())
+
     # Display the filtered news as it appears in Excel
     st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
     
@@ -234,7 +238,7 @@ if uploaded_file is not None:
     # Step 2: Introduce a button to proceed with LLM analysis
     if st.button("Применить анализ LLM"):
         # Apply LLM analysis and generate a new processed file with LLM results
-        processed_llm_file, new_dashboard_summary = apply_llm_analysis(filtered_table, "processed_news_without_llm.xlsx")
+        processed_llm_file, new_dashboard_summary = apply_llm_analysis(filtered_table, "/tmp/processed_news_without_llm.xlsx")
 
         # Display the new dashboard summary with LLM analysis
         st.write("Сводка с анализом LLM (Риск убытка):")
