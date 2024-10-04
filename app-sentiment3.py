@@ -23,7 +23,7 @@ openai.api_key = openai_api_key  # Set OpenAI API key
 # Define prompt templates for LangChain
 risk_prompt_template = PromptTemplate(
     input_variables=["text", "company"],
-    template="Текст: {text}\nКомпания: {company}\nЕсть ли риск убытка для этой компании? Ответьте 'Риск убытка' или 'Нет риска убытка'."
+    template="Текст: {text}\nКомпания: {company}\nЕсть ли риск убытка для этой компании в ближайшие шесть месяцев? Ответьте 'Риск убытка' или 'Нет риска убытка'."
 )
 
 comment_prompt_template = PromptTemplate(
@@ -34,9 +34,9 @@ comment_prompt_template = PromptTemplate(
 # Function to call OpenAI's API with the new ChatCompletion method
 def call_openai(prompt):
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  # You can change to "gpt-4" if available
+        model="gpt-4o-mini",  # Updated model to gpt-4o-mini
         messages=[
-            {"role": "system", "content": "You are a financial risk assessment assistant."},
+            {"role": "system", "content": "You are a financial credit analyst. You assess probability of short-term credit risk of the company or a bank."},
             {"role": "user", "content": prompt}
         ]
     )
@@ -146,7 +146,7 @@ def process_excel_without_llm(file, sample_file, similarity_threshold=65):
     output = BytesIO()
     book = load_workbook(sample_file)
 
- # Rename columns for display in Streamlit
+    # Rename columns for display in Streamlit
     dashboard_summary_sorted.columns = [
         'Компания',
         'Всего публикаций',
@@ -154,14 +154,11 @@ def process_excel_without_llm(file, sample_file, similarity_threshold=65):
         'Из них: негативных',
         'Из них: позитивных',
         'Уровень материального негатива'
-        ]
+    ]
 
     filtered_news = df_deduplicated[df_deduplicated['Relevance'] == 'материальна']
     filtered_news = filtered_news.drop_duplicates(subset=['Объект', 'Выдержки из текста']).reset_index(drop=True)
 
-    # Load the sample Excel file to maintain formatting
-    book = load_workbook(sample_file)
-
     # Write sorted data to the "Сводка" sheet
     dashboard_sheet = book['Сводка']
     for idx, row in dashboard_summary_sorted.iterrows():
@@ -172,33 +169,7 @@ def process_excel_without_llm(file, sample_file, similarity_threshold=65):
         dashboard_sheet[f'I{4 + idx}'] = row['Из них: позитивных']
         dashboard_sheet[f'J{4 + idx}'] = row['Уровень материального негатива']
 
-    # Write to the 'Публикации' sheet
-    publications_sheet = book['Публикации']
-    for r_idx, row in df_deduplicated.iterrows():
-        for c_idx, value in enumerate(row):
-            publications_sheet.cell(row=2 + r_idx, column=c_idx + 1).value = value
-
-    # Write to the 'Значимые' sheet, no empty rows
-    filtered_sheet = book['Значимые']
-    for f_idx, row in filtered_news.iterrows():
-        filtered_sheet[f'C{3 + f_idx}'] = row['Объект']
-        filtered_sheet[f'D{3 + f_idx}'] = row['Relevance']
-        filtered_sheet[f'E{3 + f_idx}'] = row['Sentiment']
-        filtered_sheet[f'F{3 + f_idx}'] = row['Materiality_Level']
-        filtered_sheet[f'G{3 + f_idx}'] = row['Заголовок'] if 'Заголовок' in row else ''
-        filtered_sheet[f'H{3 + f_idx}'] = row['Выдержки из текста']
-    
-    # Write sorted data to the "Сводка" sheet
-    dashboard_sheet = book['Сводка']
-    for idx, row in dashboard_summary_sorted.iterrows():
-        dashboard_sheet[f'E{4 + idx}'] = row['Компания']
-        dashboard_sheet[f'F{4 + idx}'] = row['Всего публикаций']
-        dashboard_sheet[f'G{4 + idx}'] = row['Из них: материальных']
-        dashboard_sheet[f'H{4 + idx}'] = row['Из них: негативных']
-        dashboard_sheet[f'I{4 + idx}'] = row['Из них: позитивных']
-        dashboard_sheet[f'J{4 + idx}'] = row['Уровень материального негатива']
-
-# Save the final file to a BytesIO buffer
+    # Save the final file to a BytesIO buffer
     output = BytesIO()
     book.save(output)
     output.seek(0)
@@ -206,46 +177,47 @@ def process_excel_without_llm(file, sample_file, similarity_threshold=65):
     return output, df_deduplicated, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted
 
 # Function to apply LLM analysis and generate a new Excel file
-def apply_llm_analysis(df_deduplicated, sample_file):
+def apply_llm_analysis(df_deduplicated, previous_file):
+    # Load the previously generated file (processed without LLM)
+    book = load_workbook(previous_file)
+
     # Apply LLM for Risk and Comment assessment
     df_deduplicated['Risk of loss'] = df_deduplicated.apply(lambda row: call_openai(risk_prompt_template.format(text=row['Выдержки из текста'], company=row['Объект'])), axis=1)
     df_deduplicated['Comment'] = df_deduplicated.apply(lambda row: call_openai(comment_prompt_template.format(text=row['Выдержки из текста'], company=row['Объект'])), axis=1)
 
-    # Create new dashboard summary filtered by 'Риск убытка'
-    new_dashboard_summary = df_deduplicated[df_deduplicated['Risk of loss'] == 'Риск убытка'][['Объект', 'Заголовок', 'Выдержки из текста', 'Risk of loss', 'Comment']]
+    # Filter rows where 'Risk of loss' is 'Риск убытка'
+    filtered_llm_news = df_deduplicated[df_deduplicated['Risk of loss'] == 'Риск убытка']
 
-    # Load the sample Excel file to maintain formatting
-    book = load_workbook(sample_file)
+    # Write filtered LLM results to the existing "Анализ" sheet in the Excel file
+    analysis_sheet = book['Анализ']
 
-    # Write sorted data to the new "Сводка" sheet with LLM results
-    dashboard_sheet = book['Сводка']
-    for idx, row in new_dashboard_summary.iterrows():
-        dashboard_sheet[f'E{4 + idx}'] = row['Объект']
-        dashboard_sheet[f'F{4 + idx}'] = row['Заголовок']
-        dashboard_sheet[f'G{4 + idx}'] = row['Risk of loss']
-        dashboard_sheet[f'H{4 + idx}'] = row['Comment']
-    
+    for idx, row in filtered_llm_news.iterrows():
+        analysis_sheet[f'E{4 + idx}'] = row['Объект']
+        analysis_sheet[f'F{4 + idx}'] = row['Заголовок']
+        analysis_sheet[f'G{4 + idx}'] = row['Risk of loss']
+        analysis_sheet[f'H{4 + idx}'] = row['Comment']
+        analysis_sheet[f'I{4 + idx}'] = row['Выдержки из текста']
+
     # Save the final file with LLM results to a BytesIO buffer
     output_llm = BytesIO()
     book.save(output_llm)
     output_llm.seek(0)
 
-    return output_llm, new_dashboard_summary
+    return output_llm, filtered_llm_news
 
 # Handle file upload and processing
 if uploaded_file is not None:
     # Store the path to the sample Excel file for formatting
     sample_file = "sample_file.xlsx"
 
-    # Step 1: Process the file without LLM analysis and display the dashboard summary #new dashboard summary - удалено
-    processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted= process_excel_without_llm(uploaded_file, sample_file)
+    # Step 1: Process the file without LLM analysis and display the dashboard summary
+    processed_file, filtered_table, original_news_count, duplicates_removed, remaining_news_count, dashboard_summary_sorted = process_excel_without_llm(uploaded_file, sample_file)
 
     # Display the filtered news as it appears in Excel
     st.write(f"Из {original_news_count} новостных сообщений удалены {duplicates_removed} дублирующих. Осталось {remaining_news_count}.")
     
     st.write("Только материальные новости:")
     st.dataframe(filtered_table[['Объект', 'Relevance', 'Sentiment', 'Materiality_Level', 'Заголовок', 'Выдержки из текста']])
-
 
     # Display the initial dashboard summary without LLM
     st.write("Сводка без анализа LLM:")
@@ -262,7 +234,7 @@ if uploaded_file is not None:
     # Step 2: Introduce a button to proceed with LLM analysis
     if st.button("Применить анализ LLM"):
         # Apply LLM analysis and generate a new processed file with LLM results
-        processed_llm_file, new_dashboard_summary = apply_llm_analysis(filtered_table, sample_file)
+        processed_llm_file, new_dashboard_summary = apply_llm_analysis(filtered_table, "processed_news_without_llm.xlsx")
 
         # Display the new dashboard summary with LLM analysis
         st.write("Сводка с анализом LLM (Риск убытка):")
@@ -275,4 +247,3 @@ if uploaded_file is not None:
             file_name="processed_news_with_llm.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
